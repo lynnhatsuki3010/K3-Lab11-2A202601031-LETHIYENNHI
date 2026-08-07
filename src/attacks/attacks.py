@@ -256,6 +256,7 @@ async def run_attacks(
     *,
     save_json: bool = True,
     output_path: str | Path | None = None,
+    agent_factory=None,
 ):
     """Run adversarial prompts against the agent and collect results.
 
@@ -264,7 +265,14 @@ async def run_attacks(
       guards → outputs/guards_attack_result.json
     Shape matches the demo attack log:
       { target, leaks, blocked_input, blocked_plugin, model_refuse, results }
+
+    agent_factory (optional): zero-arg callable rebuilding (agent, runner).
+    When given, a Gemini quota/billing error rotates GOOGLE_API_KEY (see
+    core/config.py::rotate_google_api_key) and rebuilds via this factory
+    instead of failing the whole run — see core/utils.py::chat_with_rotation.
     """
+    from core.utils import chat_with_rotation
+
     if prompts is None:
         prompts = adversarial_prompts
 
@@ -278,7 +286,12 @@ async def run_attacks(
         print(f"Input: {attack['input'][:100]}...")
 
         try:
-            response, _ = await chat_with_agent(agent, runner, attack["input"])
+            if agent_factory is not None:
+                response, _session, agent, runner = await chat_with_rotation(
+                    agent_factory, attack["input"], agent=agent, runner=runner
+                )
+            else:
+                response, _ = await chat_with_agent(agent, runner, attack["input"])
             outcome = classify_attack_outcome(
                 attack["input"], response, target_name=target_name
             )

@@ -18,6 +18,8 @@ python -m venv .venv
 # 2) API key
 Copy-Item .env.example .env
 # Mở .env, dán GOOGLE_API_KEY — lấy tại https://aistudio.google.com/apikey
+# (tuỳ chọn) thêm GOOGLE_API_KEY_2, GOOGLE_API_KEY_3... làm key dự phòng —
+# code tự xoay key khi key chính hết quota, xem .env.example
 
 # 3) Cài dependency trong venv
 python -m pip install -U pip

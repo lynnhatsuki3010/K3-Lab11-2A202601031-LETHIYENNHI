@@ -21,9 +21,30 @@ _INVISIBLE_CHARS = re.compile(
 )
 
 
+def strip_diacritics(text: str) -> str:
+    """Remove Vietnamese diacritics / accents from text.
+
+    E.g. 'lãi suất tiết kiệm' → 'lai suat tiet kiem'
+    Uses unicodedata NFD decomposition to split base chars from
+    combining marks, then drops the marks.
+    """
+    if not text:
+        return ""
+    nfd = unicodedata.normalize("NFD", text)
+    # Keep only characters that are NOT combining marks (category M)
+    stripped = "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn")
+    # Handle special Vietnamese characters that NFD doesn't decompose
+    replacements = {
+        "đ": "d", "Đ": "D",
+    }
+    for src, dst in replacements.items():
+        stripped = stripped.replace(src, dst)
+    return stripped
+
+
 def canonicalize(text: str) -> str:
     """Normalize Unicode + strip invisible spacing so obfuscated
-    injection strings (e.g. "Ignore​ all previous instructions")
+    injection strings (e.g. "Ignore\u200b all previous instructions")
     collapse back to their plain-ASCII form before pattern matching.
     """
     if not text:
@@ -104,12 +125,15 @@ def topic_filter(user_input: str) -> bool:
     Returns:
         True if input should be BLOCKED (off-topic or blocked topic)
     """
-    input_lower = canonicalize(user_input).lower()
+    canonicalized = canonicalize(user_input).lower()
+    # Also strip diacritics so Vietnamese with accents (e.g. "lãi suất")
+    # matches the no-accent ALLOWED_TOPICS entries (e.g. "lai suat")
+    input_no_accent = strip_diacritics(canonicalized)
 
-    if any(topic in input_lower for topic in BLOCKED_TOPICS):
+    if any(topic in canonicalized or topic in input_no_accent for topic in BLOCKED_TOPICS):
         return True
 
-    if not any(topic in input_lower for topic in ALLOWED_TOPICS):
+    if not any(topic in canonicalized or topic in input_no_accent for topic in ALLOWED_TOPICS):
         return True
 
     return False

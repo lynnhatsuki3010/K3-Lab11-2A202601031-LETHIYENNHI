@@ -32,18 +32,22 @@ async def part1_attacks():
 
     # --- Unsafe (required for hạng mục B) ---
     unsafe_agent, unsafe_runner = create_unsafe_agent()
-    await test_agent(unsafe_agent, unsafe_runner)
+    unsafe_agent, unsafe_runner = await test_agent(
+        unsafe_agent, unsafe_runner, agent_factory=create_unsafe_agent
+    )
 
     print("\n--- Attacks on UNSAFE agent (hạng mục B) ---")
     unsafe_results = await run_attacks(
-        unsafe_agent, unsafe_runner, target_name="unsafe"
+        unsafe_agent, unsafe_runner, target_name="unsafe",
+        agent_factory=create_unsafe_agent,
     )
 
     # --- Guards (điểm cộng only if leaked=true here) ---
     print("\n--- Attacks on GUARDS agent (điểm cộng nếu LEAKED) ---")
     guards_agent, guards_runner = create_guards_agent()
     guards_results = await run_attacks(
-        guards_agent, guards_runner, target_name="guards"
+        guards_agent, guards_runner, target_name="guards",
+        agent_factory=create_guards_agent,
     )
 
     print("\n--- Generating AI attacks (TODO 14) ---")
@@ -124,7 +128,7 @@ async def part3_testing():
     # TODO 10: Automated security pipeline
     print("\n--- TODO 10: Security Test Pipeline ---")
     agent, runner = create_unsafe_agent()
-    pipeline = SecurityTestPipeline(agent, runner)
+    pipeline = SecurityTestPipeline(agent, runner, agent_factory=create_unsafe_agent)
     results = await pipeline.run_all()
     if results:
         pipeline.print_report(results)

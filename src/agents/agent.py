@@ -49,12 +49,27 @@ def create_protected_agent(plugins: list):
     return agent, runner
 
 
-async def test_agent(agent, runner):
-    """Quick sanity check — send a normal question."""
-    response, _ = await chat_with_agent(
-        agent, runner,
-        "Hi, I'd like to ask about the current savings interest rate?"
-    )
+async def test_agent(agent, runner, agent_factory=None):
+    """Quick sanity check — send a normal question.
+
+    agent_factory (optional): zero-arg callable rebuilding (agent, runner),
+    used to survive a Gemini quota/billing error by rotating GOOGLE_API_KEY
+    (see core/config.py::rotate_google_api_key + core/utils.py::chat_with_rotation).
+    """
+    if agent_factory is not None:
+        from core.utils import chat_with_rotation
+
+        response, _session, agent, runner = await chat_with_rotation(
+            agent_factory,
+            "Hi, I'd like to ask about the current savings interest rate?",
+            agent=agent, runner=runner,
+        )
+    else:
+        response, _ = await chat_with_agent(
+            agent, runner,
+            "Hi, I'd like to ask about the current savings interest rate?"
+        )
     print(f"User: Hi, I'd like to ask about the savings interest rate?")
     print(f"Agent: {response}")
     print("\n--- Agent works normally with safe questions ---")
+    return agent, runner
