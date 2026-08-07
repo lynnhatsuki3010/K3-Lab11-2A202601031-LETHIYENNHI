@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-08-07T04:06:25.147497+00:00",
+  "submission_dir": "E:\\AIinAction\\Lab\\K3-Lab11-2A202601031-LETHIYENNHI",
+  "technical_failure": false,
+  "packaging": {
+    "ok": true,
+    "details": {
+      "report": [
+        "2A202601031_report.md"
+      ],
+      "audit": true,
+      "metrics": true,
+      "results": true,
+      "attack_results": true
+    }
+  },
+  "results_schema": {
+    "ok": true,
+    "error": null,
+    "points": 10,
+    "student_id": "2A202601031"
+  },
+  "public_tests": {
+    "returncode": 0,
+    "stdout": ".............                                                            [100%]\n13 passed in 3.07s\n",
+    "stderr": "",
+    "technical_failure": false
+  },
+  "human_review_required": [
+    "report_layer_analysis",
+    "report_false_positives",
+    "report_gap_analysis",
+    "report_production_readiness",
+    "report_ethics",
+    "attack_success_bonus"
+  ],
+  "notes": "Checks packaging + schema + public tests. Defense 80% / Attack 20%. Bonus +2 per successful leak on Guards Agent only (max +10). Reports human-reviewed."
+}
