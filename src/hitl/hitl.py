@@ -65,32 +65,40 @@ class ConfidenceRouter:
         Returns:
             RoutingDecision with routing action and metadata
         """
-        # TODO 11: Implement routing logic
-        #
-        # 1. Check if action_type is in HIGH_RISK_ACTIONS
-        #    -> If yes: always escalate (action="escalate", priority="high",
-        #       requires_human=True, reason="High-risk action: {action_type}")
-        #
-        # 2. Check confidence thresholds:
-        #    - confidence >= 0.9:
-        #      action="auto_send", priority="low",
-        #      requires_human=False, reason="High confidence"
-        #
-        #    - 0.7 <= confidence < 0.9:
-        #      action="queue_review", priority="normal",
-        #      requires_human=True, reason="Medium confidence — needs review"
-        #
-        #    - confidence < 0.7:
-        #      action="escalate", priority="high",
-        #      requires_human=True, reason="Low confidence — escalating"
+        if action_type in HIGH_RISK_ACTIONS:
+            return RoutingDecision(
+                action="escalate",
+                confidence=confidence,
+                reason=f"High-risk action: {action_type}",
+                priority="high",
+                requires_human=True,
+            )
+
+        if confidence >= self.HIGH_THRESHOLD:
+            return RoutingDecision(
+                action="auto_send",
+                confidence=confidence,
+                reason="High confidence",
+                priority="low",
+                requires_human=False,
+            )
+
+        if confidence >= self.MEDIUM_THRESHOLD:
+            return RoutingDecision(
+                action="queue_review",
+                confidence=confidence,
+                reason="Medium confidence — needs review",
+                priority="normal",
+                requires_human=True,
+            )
 
         return RoutingDecision(
-            action="auto_send",
+            action="escalate",
             confidence=confidence,
-            reason="TODO: implement routing logic",
-            priority="low",
-            requires_human=False,
-        )  # TODO: Replace with implementation
+            reason="Low confidence — escalating",
+            priority="high",
+            requires_human=True,
+        )
 
 
 # ============================================================
@@ -111,33 +119,105 @@ class ConfidenceRouter:
 hitl_decision_points = [
     {
         "id": 1,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
-        "approval_path": "TODO: Explain approve, reject and timeout behavior",
-        "audit_fields": "TODO: List correlation ID, intent, diff and reviewer decision",
+        "name": "High-value money transfer approval",
+        "trigger": (
+            "Agent proposes a transfer_money action above a value threshold "
+            "(e.g. > 20,000,000 VND) or to a new/never-used beneficiary account."
+        ),
+        "hitl_model": "human-in-the-loop",
+        "context_needed": (
+            "Source account, destination account, amount, currency, stated intent "
+            "from the conversation, beneficiary history (new vs known), and the "
+            "raw user message that triggered the request."
+        ),
+        "example": (
+            "Customer chats: 'Transfer 50,000,000 VND to account 0123456789 at "
+            "Vietcombank.' Agent drafts the transfer but does not execute it — it "
+            "is queued with correlation_id, amount and destination for a bank "
+            "reviewer to approve before any money moves."
+        ),
+        "approval_path": (
+            "approve: reviewer confirms identity/intent match, action executes and "
+            "audit log records reviewer_id + approval_id. reject: action is "
+            "cancelled, customer is notified with a reason. timeout (e.g. no "
+            "decision in 15 min): request fails closed (not executed) and is "
+            "escalated to a supervisor queue."
+        ),
+        "audit_fields": (
+            "correlation_id, user_id, action=transfer_money, destination account, "
+            "amount/payload diff (before vs proposed), reviewer_id, decision "
+            "(approve/reject/timeout), decision_timestamp, approval_id."
+        ),
     },
     {
         "id": 2,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
-        "approval_path": "TODO: Explain approve, reject and timeout behavior",
-        "audit_fields": "TODO: List correlation ID, intent, diff and reviewer decision",
+        "name": "Guardrail-blocked request needing manual override review",
+        "trigger": (
+            "Input/output guardrail or LLM-as-Judge blocks a request that the "
+            "monitoring layer flags as a possible false positive (e.g. block rate "
+            "spikes for a topic, or a legitimate-looking banking question is "
+            "blocked repeatedly by the same user)."
+        ),
+        "hitl_model": "human-on-the-loop",
+        "context_needed": (
+            "Original user message, which layer blocked it and why (matched "
+            "pattern/judge verdict), the canned refusal sent to the user, and "
+            "recent block-rate metrics for that user/topic."
+        ),
+        "example": (
+            "A customer repeatedly asks about 'joint account password reset' and "
+            "gets blocked by the PII/secret-pattern filter because it contains "
+            "the word 'password'. A reviewer inspects the queued block log, sees "
+            "it's benign, and can whitelist that phrasing or manually answer."
+        ),
+        "approval_path": (
+            "approve (override): the reviewer manually sends a safe answer to the "
+            "customer and logs the override. reject: the block stands, no "
+            "customer-facing change. timeout: block stands by default (fail "
+            "closed) — the reviewer queue is a monitoring/on-the-loop check, not "
+            "a live gate, so no live transaction is waiting on it."
+        ),
+        "audit_fields": (
+            "correlation_id, user_id, blocking layer, matched pattern/judge "
+            "verdict, reviewer_id, override decision, override justification, "
+            "decision_timestamp."
+        ),
     },
     {
         "id": 3,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
-        "approval_path": "TODO: Explain approve, reject and timeout behavior",
-        "audit_fields": "TODO: List correlation ID, intent, diff and reviewer decision",
+        "name": "Irreversible account action (close account / change password)",
+        "trigger": (
+            "Agent proposes any action in HIGH_RISK_ACTIONS that is destructive or "
+            "hard to reverse: close_account, change_password, delete_data, "
+            "update_personal_info."
+        ),
+        "hitl_model": "human-as-tiebreaker",
+        "context_needed": (
+            "Full intent summary, diff of what would change (e.g. old vs new "
+            "phone/email on file, or account status before/after), identity "
+            "verification signals already collected, and the ConfidenceRouter "
+            "score that triggered escalation."
+        ),
+        "example": (
+            "Customer asks the assistant to close their account entirely. The "
+            "agent drafts the close_account request but ConfidenceRouter forces "
+            "escalate=True regardless of confidence; a human agent verifies "
+            "identity and reviews the diff (account status: active -> closed) "
+            "before anything is executed."
+        ),
+        "approval_path": (
+            "approve: reviewer confirms identity and intent, action executes, "
+            "approval_id recorded and required by authorize_action() before the "
+            "sink call. reject: action cancelled, customer notified, reason "
+            "logged. timeout: fail closed — action never executes without an "
+            "explicit human approval_id (see agents/security_boundary.py "
+            "authorize_action)."
+        ),
+        "audit_fields": (
+            "correlation_id, user_id, action type, before/after diff, "
+            "reviewer_id, approval_id (format HITL-XXXXXXXX), decision "
+            "(approve/reject/timeout), decision_timestamp."
+        ),
     },
 ]
 
