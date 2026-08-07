@@ -5,12 +5,34 @@ Lab 11 — Part 2A: Input Guardrails
   TODO 3: Input Guardrail Plugin (ADK)
 """
 import re
+import unicodedata
 
 from google.genai import types
 from google.adk.plugins import base_plugin
 from google.adk.agents.invocation_context import InvocationContext
 
 from core.config import ALLOWED_TOPICS, BLOCKED_TOPICS
+
+
+# Zero-width / invisible characters attackers use to split keywords
+# (zero-width space, zero-width non-joiner/joiner, BOM, soft hyphen).
+_INVISIBLE_CHARS = re.compile(
+    r"[​‌‍﻿­⁠]"
+)
+
+
+def canonicalize(text: str) -> str:
+    """Normalize Unicode + strip invisible spacing so obfuscated
+    injection strings (e.g. "Ignore​ all previous instructions")
+    collapse back to their plain-ASCII form before pattern matching.
+    """
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKC", text)
+    normalized = _INVISIBLE_CHARS.sub("", normalized)
+    # collapse repeated whitespace left behind by removed chars
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.strip()
 
 
 # ============================================================
@@ -42,13 +64,23 @@ def detect_injection(user_input: str) -> bool:
         True if injection detected, False otherwise
     """
     INJECTION_PATTERNS = [
-        # TODO: Add at least 5 regex patterns
-        # Example:
-        # r"ignore (all )?(previous|above) instructions",
+        r"ignore\s+(all\s+)?(previous|above)\s+instructions",
+        r"you\s+are\s+now\b",
+        r"system\s+prompt",
+        r"reveal\s+your\s+(instructions|prompt)",
+        r"pretend\s+you\s+are\b",
+        r"act\s+as\s+(a\s+|an\s+)?unrestricted",
+        r"disregard\s+(all\s+)?(previous|prior|above)\s+(instructions|rules)",
+        r"b[oỏ]\s*qua\s+(?:\S+\s+){0,2}?(h[uướ]\S*ng\s+d[aẫ]n|ch[iỉ]\s+d[aẫ]n|quy\s+t[aắ]c)",
+        r"tr[oở]\s+th[aà]nh\s+dan\b",
+        r"ti[eế]t\s+l[oộ]\s+(?:\S+\s+){0,2}?(system\s+prompt|h[uướ]\S*ng\s+d[aẫ]n\s+h[eệ]\s+th[oố]ng|prompt\s+h[eệ]\s+th[oố]ng|m[aậ]t\s+kh[aẩ]u)",
+        r"jailbreak",
     ]
 
+    canon = canonicalize(user_input)
+
     for pattern in INJECTION_PATTERNS:
-        if re.search(pattern, user_input, re.IGNORECASE):
+        if re.search(pattern, canon, re.IGNORECASE):
             return True
     return False
 
@@ -72,14 +104,15 @@ def topic_filter(user_input: str) -> bool:
     Returns:
         True if input should be BLOCKED (off-topic or blocked topic)
     """
-    input_lower = user_input.lower()
+    input_lower = canonicalize(user_input).lower()
 
-    # TODO: Implement logic:
-    # 1. If input contains any blocked topic -> return True
-    # 2. If input doesn't contain any allowed topic -> return True
-    # 3. Otherwise -> return False (allow)
+    if any(topic in input_lower for topic in BLOCKED_TOPICS):
+        return True
 
-    pass  # Replace with your implementation
+    if not any(topic in input_lower for topic in ALLOWED_TOPICS):
+        return True
+
+    return False
 
 
 # ============================================================
@@ -132,14 +165,19 @@ class InputGuardrailPlugin(base_plugin.BasePlugin):
         self.total_count += 1
         text = self._extract_text(user_message)
 
-        # TODO: Implement logic:
-        # 1. Call detect_injection(text)
-        #    - If True: increment blocked_count, return self._block_response("...")
-        # 2. Call topic_filter(text)
-        #    - If True: increment blocked_count, return self._block_response("...")
-        # 3. If both are False: return None (let message through)
+        if detect_injection(text):
+            self.blocked_count += 1
+            return self._block_response(
+                "Yêu cầu bị từ chối: phát hiện dấu hiệu prompt injection."
+            )
 
-        pass  # Replace with your implementation
+        if topic_filter(text):
+            self.blocked_count += 1
+            return self._block_response(
+                "Yêu cầu bị từ chối: chỉ hỗ trợ câu hỏi liên quan ngân hàng."
+            )
+
+        return None
 
 
 # ============================================================
