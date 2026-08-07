@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VinBank Assistant — Attack/Defense Demo</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1>🏦 VinBank Assistant — Attack/Defense Demo</h1>
+      <p class="subtitle">
+        Lab 11 demo client — thử tấn công 3 phiên bản agent (Unsafe / Protected / Guards) trực tiếp qua chat.
+      </p>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="targets">
+          <h2>Chọn agent</h2>
+          <div id="target-list" class="target-list"></div>
+        </section>
+
+        <section class="presets">
+          <h2>Prompt mẫu (bấm để điền)</h2>
+          <div id="preset-list" class="preset-list"></div>
+        </section>
+
+        <section class="legend">
+          <h2>Chú thích badge</h2>
+          <div class="legend-item"><span class="badge badge-leaked">LEAKED</span> secret lộ trong câu trả lời</div>
+          <div class="legend-item"><span class="badge badge-blocked">BLOCKED</span> bị chặn ở một lớp guardrail</div>
+          <div class="legend-item"><span class="badge badge-ok">OK</span> không lộ, không chặn rõ ràng</div>
+        </section>
+      </aside>
+
+      <main class="chat-panel">
+        <div class="chat-header">
+          <span id="active-target-label">Unsafe agent (no guardrails)</span>
+          <button id="reset-btn" class="reset-btn">Reset hội thoại</button>
+        </div>
+        <div id="messages" class="messages"></div>
+        <form id="chat-form" class="chat-form">
+          <textarea id="chat-input" rows="2" placeholder="Nhập câu hỏi hoặc bấm một prompt mẫu bên trái..."></textarea>
+          <button type="submit" id="send-btn">Gửi</button>
+        </form>
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
